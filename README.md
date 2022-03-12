@@ -29,13 +29,22 @@ We will be using some python libraries to preprocess and analyze the data visual
 
 Preprocessing:
 
-![](RackMultipart20220312-4-1ylzs33_html_c7e811cfb1bfb5a.png)
+```python
+data = pd.read_csv("bustabit.csv")
+```
 
 The dataset is now saved in the form of a data frame into the variable &quot;data&quot;.
 
 To make our analysis more understandable, we will be adjusting a few columns of our dataset. We will be replacing the &#39;ID&#39; column with a new one that acts as a primary key for our database. Also, we would be replacing &#39;PlayDate&#39; with &#39;Year&#39; because our project does not require any further information related to time.
 
-![](RackMultipart20220312-4-1ylzs33_html_8965478c230aa7b3.png)
+```python
+data = data.drop(["Id"], axis = 1)
+data.reset_index(drop=True, inplace=True)
+data.index.name = 'ID'
+    
+data['Year'] = pd.DatetimeIndex(data['PlayDate']).year
+data = data.drop('PlayDate', axis = 1)
+```
 
 These are the columns remaining in the data frame that we would be using in our analysis:
 
@@ -55,21 +64,53 @@ Before we export our database to GridDB, we need to deal with the NULL values pr
 2. Profit - If the value for Profit is NA, we will set it to be zero to indicate no profit for the player in that game
 3. Bonus – If the value for Bonus is NA, we will set it to zero to indicate that there was no bonus for the player in that game.
 
-![](RackMultipart20220312-4-1ylzs33_html_e703918a762dac12.png)
+```python
+data = data.assign(CashedOut = np.where((data['CashedOut'].isnull()),data['BustedAt'] + .01, data['CashedOut']))
+data = data.assign(Profit = np.where((data['Profit'].isnull()), 0 , data['Profit']))
+data = data.assign(Profit = np.where((data['Bonus'].isnull()), 0 , data['Bonus']))
+```
 
 As we have completed the preprocessing of our data, we can now save it on our local drive.
 
-![](RackMultipart20220312-4-1ylzs33_html_65e0b7e9c8f2a8c8.png)
+```python
+data.to_csv("preprocessed.csv")
+```
 
 Exporting Dataset into GridDB:
 
 To upload the dataset to GridDB, we would read the CSV file that contains the preprocessed data.
 
-![](RackMultipart20220312-4-1ylzs33_html_4e77074a2154ff28.png)
+```python
+data_processed = pd.read_csv("preprocessed.csv")
+```
 
 Now, we will create a GridDB container to pass our database schema to the GridDB to be able to generate the design of the database before inserting the row information. Next, we would insert our data into the GridDB.
 
-![](RackMultipart20220312-4-1ylzs33_html_7879017887a85c7d.png)
+```python
+#Create container 
+data_container = "data_container"
+
+# Create containerInfo
+data_containerInfo = griddb.ContainerInfo(data_container,
+                [["ID", griddb.Type.FLOAT],
+                ["GameID", griddb.Type.FLOAT],
+                ["Username", griddb.Type.STRING],
+                ["Bet", griddb.Type.FLOAT],
+                ["CashedOut", griddb.Type.FLOAT],
+                ["Bonus", griddb.Type.FLOAT],
+                ["Profit", griddb.Type.FLOAT],
+                ["BustedAt", griddb.Type.FLOAT],
+                ["Year", griddb.Type.INTEGER]],
+                griddb.ContainerType.COLLECTION, True)
+    
+data_columns = gridstore.put_container(data_containerInfo)
+
+print("container created and columns added")
+    
+# Put rows
+data_columns.put_rows(data_processed)    
+print("Data Inserted using the DataFrame")
+```
 
 We have now successfully exported the dataset to the GridDB platform.
 
@@ -77,11 +118,26 @@ Importing Dataset from GridDB:
 
 To import the dataset from the GridDB platform, we will use TQL, GridDB&#39;s query language similar to SQL. We will create a container and store the fetched data in it.
 
-![](RackMultipart20220312-4-1ylzs33_html_4b55d914e08711b0.png)
+```python
+# Define the container names
+data_container = "data_container"
+
+# Get the containers
+obtained_data = gridstore.get_container(data_container)
+    
+# Fetch all rows - language_tag_container
+query = obtained_data.query("select *")
+
+```
 
 The next step would be to extract the rows in order of the column info and save it into a data frame to use for data visualization and analysis.
 
-![](RackMultipart20220312-4-1ylzs33_html_98b6461dd4022da9.png)
+```python
+# Convert the list to a pandas data frame
+data = pd.DataFrame(retrieved_data, columns=['ID', 'GameID',"Username",
+                   "Bet","CashedOut" ,"Bonus", "Profit","BustedAt","Year"])
+
+```
 
 We now have our data saved into pandas data frame &quot;data&quot; and can continue to use it for our project.
 
@@ -93,29 +149,47 @@ We will be using the Kmeans clustering algorithm to cluster the players into fiv
 2. GameWon - If the user made a profit in this game, the value should be 1, and 0 otherwise
 3. GameLost If the user had a loss in this game, the value should be 1, and 0 otherwise
 
-![](RackMultipart20220312-4-1ylzs33_html_8c138c34436fcf5f.png)
+```python
+data = data.assign(Losses = np.where((data['Profit'] == 0 ), - data['Bet'], 0))
+data = data.assign(GameWon = np.where((data['Profit'] == 0 ), 0 , 1))
+data = data.assign(GameLost = np.where((data['Profit'] == 0 ), 1, 0))
+
+```
 
 Let&#39;s take a look into some specific rows by filtering out data using conditions:
 
 1. Highest multiplier: Details of the Game and User with highest &#39;BustedAt&#39; value
 
-![](RackMultipart20220312-4-1ylzs33_html_26f8b31e23f6ac81.png)
+```python
+data.iloc[data['BustedAt'].idxmax()]
+```
 
 1. Highest Bet: Details of the Game and User with the highest Bet
 
-![](RackMultipart20220312-4-1ylzs33_html_c104bbb940f74171.png)
+```python
+data.iloc[data['Bet'].idxmax()]
+```
 
 1. Highest Profit: Details of the Game and User with the highest Profit
 
-![](RackMultipart20220312-4-1ylzs33_html_dea39704ef2f8acd.png)
+```python
+data.iloc[data['Profit'].idxmax()]
+```
 
 Next, we would group the data using &#39;Username&#39; to identify the earnings, winnings, and losses by each user, throughout their gambling history at Bustabit. This would help us identify the gambling habits of each user and better understand of relationship and similarities between groups of players.
 
-![](RackMultipart20220312-4-1ylzs33_html_3a84190b80b8b91e.png)
+```python
+data_groupby = data.groupby('Username').agg({'CashedOut': 'mean',
+                                             'Bet': 'mean',
+                                             'Profit': 'sum',
+                                             'Losses': 'sum',
+                                             'GameWon': 'sum',
+                                             'GameLost': 'sum'})
+```
 
 This is what our data looks like now:
 
-![](RackMultipart20220312-4-1ylzs33_html_3051482a8791fe3e.png)
+![](Images/Groupby.png)
 
 Before moving unto clusters formation, we would first like to standardize the data across the dataset. This would transform the dataset into a standard measuring unit, making our algorithm more efficient. We will create our standardization function and apply it to every numerical column of our dataset.
 
