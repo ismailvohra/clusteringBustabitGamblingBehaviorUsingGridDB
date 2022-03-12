@@ -164,17 +164,23 @@ Let&#39;s take a look into some specific rows by filtering out data using condit
 data.iloc[data['BustedAt'].idxmax()]
 ```
 
+![](Images/Highest_Multiplier.png)
+
 1. Highest Bet: Details of the Game and User with the highest Bet
 
 ```python
 data.iloc[data['Bet'].idxmax()]
 ```
 
+![](Images/Highest_Bet.png)
+
 1. Highest Profit: Details of the Game and User with the highest Profit
 
 ```python
 data.iloc[data['Profit'].idxmax()]
 ```
+
+![](Images/Highest_Profit.png)
 
 Next, we would group the data using &#39;Username&#39; to identify the earnings, winnings, and losses by each user, throughout their gambling history at Bustabit. This would help us identify the gambling habits of each user and better understand of relationship and similarities between groups of players.
 
@@ -189,21 +195,35 @@ data_groupby = data.groupby('Username').agg({'CashedOut': 'mean',
 
 This is what our data looks like now:
 
-![](Images/Groupby.png)
+![](Images/Group_by.png)
 
 Before moving unto clusters formation, we would first like to standardize the data across the dataset. This would transform the dataset into a standard measuring unit, making our algorithm more efficient. We will create our standardization function and apply it to every numerical column of our dataset.
 
-![](RackMultipart20220312-4-1ylzs33_html_2b38ade9a4fbdc69.png)
+```python
+def standardization_function(x):
+    return (x-np.mean(x)/np.std(x))
+
+
+bustabit_standardized = data_groupby.apply(lambda x: standardization_function(x) 
+                                           if ((x.dtype == float) or (type(x) == int)) 
+
+```
 
 Our last step is to now form clusters of players into five sets using the sklearn library.
 
-![](RackMultipart20220312-4-1ylzs33_html_91f14f0e32be4429.png)
+```python
+kmeans = KMeans(n_clusters=5, random_state=0).fit(bustabit_standardized)
+clustering_data = pd.DataFrame()  
+clustering_data['cluster'] = kmeans.predict(bustabit_standardized)
+```
 
 Here is a glimpse of our data divided into five clusters:
 
-![](RackMultipart20220312-4-1ylzs33_html_ef6db9ae7018e097.png)
-
-![](RackMultipart20220312-4-1ylzs33_html_199838c55ed8fbaa.png)
+```python
+summary = clustering_data.groupby("cluster").mean()
+summary['count'] = clustering_data['cluster'].value_counts()
+```
+![](Images/Cluster.png)
 
 **Conclusion:**
 
